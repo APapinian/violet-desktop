@@ -1,0 +1,32 @@
+configuration {
+    modi: "drun";
+    show-icons: true;
+    drun-display-format: "{name}";
+    display-drun: "Uygulamalar";
+    font: "Rubik 12";
+}
+* {
+    bg: #1d1927;
+    surface: #30283e;
+    fg: #ece4f8;
+    accent: #c5b4ff;
+    background-color: transparent;
+    text-color: @fg;
+}
+window {
+    width: 640px;
+    border: 2px;
+    border-color: #463c57;
+    border-radius: 26px;
+    background-color: @bg;
+    padding: 24px;
+}
+mainbox { spacing: 20px; }
+inputbar { background-color: @surface; border-radius: 16px; padding: 16px; spacing: 12px; children: [ prompt, entry ]; }
+prompt { text-color: @accent; }
+entry { placeholder: "Bir uygulama ara…"; }
+listview { lines: 7; columns: 1; spacing: 6px; scrollbar: false; }
+element { padding: 12px; border-radius: 14px; spacing: 12px; }
+element selected { background-color: @accent; text-color: #251a42; }
+element-icon { size: 28px; }
+element-text { vertical-align: 0.5; }

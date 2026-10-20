@@ -1,0 +1,10 @@
+import QtQuick
+Image {
+    property string name: "triforce"
+    source: Qt.resolvedUrl("assets/icons/" + name + ".svg")
+    sourceSize.width: Math.max(32, width * 2)
+    sourceSize.height: Math.max(32, height * 2)
+    fillMode: Image.PreserveAspectFit
+    smooth: true
+    mipmap: true
+}

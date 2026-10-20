@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=Hyrule Violet
+Description=Fatih — courage, wisdom and violet
+Author=Fatih
+License=CC0-1.0
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=hyrule-violet
+Theme-API=2.0
+QtVersion=6

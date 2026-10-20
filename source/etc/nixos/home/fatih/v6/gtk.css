@@ -1,0 +1,17 @@
+@define-color accent_bg_color #70529b;
+@define-color accent_fg_color #f5edff;
+@define-color accent_color #c5b4ff;
+@define-color window_bg_color #14111d;
+@define-color window_fg_color #ece4f8;
+@define-color view_bg_color #191522;
+@define-color view_fg_color #ece4f8;
+@define-color headerbar_bg_color #21192e;
+@define-color headerbar_fg_color #e5d5ff;
+@define-color sidebar_bg_color #191321;
+@define-color card_bg_color #271f34;
+window.nautilus-window, .nautilus-window { background:#14111d; }
+headerbar { background:linear-gradient(to right,#24192f,#1b1929); border-bottom:1px solid #4b375e; }
+button { border-radius:14px; }
+.navigation-sidebar { background:#191321; }
+.navigation-sidebar row { border-radius:13px; margin:3px 8px; }
+.navigation-sidebar row:selected { background:#493258; color:#eedfff; }

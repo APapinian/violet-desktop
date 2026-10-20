@@ -1,0 +1,25 @@
+singleton Theme 1.0 Theme.qml
+BottomDock 1.0 BottomDock.qml
+ClickRipple 1.0 ClickRipple.qml
+ClockPanel 1.0 ClockPanel.qml
+Control 1.0 Control.qml
+DesktopSettings 1.0 DesktopSettings.qml
+DockButton 1.0 DockButton.qml
+Launcher 1.0 Launcher.qml
+LauncherBody 1.0 LauncherBody.qml
+Pill 1.0 Pill.qml
+Popup 1.0 Popup.qml
+RuneFrame 1.0 RuneFrame.qml
+Sigil 1.0 Sigil.qml
+SpiritMotes 1.0 SpiritMotes.qml
+TopBar 1.0 TopBar.qml
+WelcomeScene 1.0 WelcomeScene.qml
+KingdomBridge 1.0 KingdomBridge.qml
+KingdomPanel 1.0 KingdomPanel.qml
+KingdomInput 1.0 KingdomInput.qml
+KingdomSparkline 1.0 KingdomSparkline.qml
+KingdomMedia 1.0 KingdomMedia.qml
+KingdomCapsule 1.0 KingdomCapsule.qml
+KingdomTicker 1.0 KingdomTicker.qml
+ShortcutGuide 1.0 ShortcutGuide.qml
+VioletDevices 1.0 VioletDevices.qml

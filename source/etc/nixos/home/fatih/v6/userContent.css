@@ -1,0 +1,5 @@
+@-moz-document url("about:newtab"),url("about:home") {
+  body { background:radial-gradient(ellipse at 60% 20%,#362342,#100f18 70%) !important; color:#e9def6 !important; }
+  .search-wrapper .search-handoff-button { background:#241c31 !important; color:#e9def6 !important; border:1px solid #674c7f !important; border-radius:24px !important; }
+  .top-site-outer .tile { background:#2d213a !important; border-radius:20px !important; }
+}

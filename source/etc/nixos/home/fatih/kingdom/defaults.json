@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "location": {
+    "name": "",
+    "latitude": null,
+    "longitude": null,
+    "timezone": "Europe/Istanbul"
+  },
+  "feeds": {
+    "youtube": [],
+    "subreddits": [],
+    "news": [],
+    "podcasts": []
+  },
+  "prayer": {
+    "method": 13,
+    "school": 0
+  },
+  "finance": {
+    "crypto": [
+      "bitcoin",
+      "ethereum"
+    ],
+    "stocks": []
+  },
+  "twitch": {
+    "channels": []
+  },
+  "imap": {
+    "host": "imap.gmail.com",
+    "port": 993,
+    "user": "",
+    "folder": "INBOX"
+  },
+  "sports": {
+    "competition": "",
+    "team_id": null
+  },
+  "calendar": {
+    "files": [],
+    "urls": [],
+    "reminder_minutes": 10
+  },
+  "radios": [],
+  "commands": [],
+  "tasks": [],
+  "goals": [],
+  "dailyWords": [],
+  "translation": {
+    "command": []
+  },
+  "alerts": {
+    "rss": true,
+    "battery": 15,
+    "temperature": 90,
+    "earthquake": 4.0,
+    "hourlyBreak": true
+  },
+  "games": {
+    "classes": [
+      "steam_app_.*",
+      "gamescope"
+    ]
+  },
+  "applicationRules": [],
+  "groupLayouts": {
+    "1": "monadtall",
+    "2": "max",
+    "5": "max"
+  },
+  "tablet": {
+    "automatic": true,
+    "rotation": false,
+    "keyboard": false,
+    "output": "eDP-1"
+  },
+  "themeSchedule": {
+    "enabled": false,
+    "day": "07:00",
+    "night": "20:00",
+    "dayWallpaper": "",
+    "nightWallpaper": ""
+  },
+  "usageTracking": true
+}

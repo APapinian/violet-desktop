@@ -1,0 +1,73 @@
+# Hyrule Violet. GRUB native countdown; full orbit animation belongs to Plymouth.
+desktop-image: "grub-background.png"
+desktop-color: "#100f18"
+title-text: ""
+message-font: "DejaVu Sans Regular 16"
+message-color: "#ece4f8"
+message-bg-color: "#17151f"
+terminal-font: "DejaVu Sans Mono Regular 16"
+terminal-box: "panel_*.png"
++ label {
+ left = 8%
+ top = 16%
+ width = 65%
+ height = 7%
+ text = "H Y R U L E"
+ font = "DejaVu Serif Regular 40"
+ color = "#ece4f8"
+}
++ label {
+ left = 8%
+ top = 23%
+ width = 65%
+ height = 4%
+ text = "V I O L E T   /   Yolculuğuna devam et, Fatih"
+ font = "DejaVu Sans Regular 18"
+ color = "#c5b4ff"
+}
++ boot_menu {
+ left = 8%
+ top = 32%
+ width = 60%
+ height = 46%
+ item_font = "DejaVu Sans Regular 20"
+ item_color = "#aaa1ba"
+ selected_item_color = "#ece4f8"
+ item_height = 56
+ item_padding = 18
+ item_spacing = 12
+ icon_width = 0
+ icon_height = 0
+ menu_pixmap_style = "panel_*.png"
+ selected_item_pixmap_style = "selection_*.png"
+}
++ circular_progress {
+ id = "__timeout__"
+ left = 77%
+ top = 41%
+ width = 110
+ height = 110
+ center_bitmap = "rune-center.png"
+ tick_bitmap = "rune-tick.png"
+ num_ticks = 48
+ start_angle = "-90 deg"
+ ticks_disappear = true
+}
++ label {
+ left = 8%
+ top = 84%
+ width = 84%
+ height = 28
+ text = "↑↓ Seçim    Enter Başlat    e Düzenle    Esc Geri"
+ font = "DejaVu Sans Regular 16"
+ color = "#aaa1ba"
+}
++ label {
+ left = 8%
+ top = 89%
+ width = 84%
+ height = 28
+ text = "Violet  ·  Önceki nesiller kurtarma menüsünde"
+ font = "DejaVu Sans Regular 16"
+ color = "#c5b4ff"
+}

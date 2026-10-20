@@ -1,0 +1,26 @@
+--- a/libqtile/backend/wayland/qw/server.h
++++ b/libqtile/backend/wayland/qw/server.h
+@@ -333,6 +333,8 @@
+ // Utility functions exposed by the server API
+ 
+ // Get  key sym from a key code
++uint32_t qw_violet_keyboard_modifiers(struct qw_server *server);
++
+ xkb_keysym_t qw_server_get_sym_from_code(struct qw_server *server, int code);
+ 
+ // Poll for server events (non-blocking)
+--- a/libqtile/backend/wayland/qw/keyboard.c
++++ b/libqtile/backend/wayland/qw/keyboard.c
+@@ -5,6 +5,12 @@
+ #include <wlr/types/wlr_keyboard.h>
+ #include <wlr/util/log.h>
+ #include <xkbcommon/xkbcommon.h>
++
++/* Read-only Alt release detection for the MRU switcher. */
++uint32_t qw_violet_keyboard_modifiers(struct qw_server *server) {
++    struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
++    return keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
++}
+ 
+ static bool qw_is_keyboard_inhibited(struct qw_server *server,
+                                      struct wlr_surface *focused_surface) {

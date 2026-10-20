@@ -1,0 +1,5 @@
+{
+  "logo": {"type":"file","source":"~/.config/fastfetch/link.txt","color":{"1":"magenta"},"padding":{"right":4}},
+  "display":{"separator":"  ›  ","color":{"keys":"magenta","title":"magenta"}},
+  "modules":["title","separator",{"type":"os","key":"Krallık"},{"type":"host","key":"Donanım"},{"type":"kernel","key":"Çekirdek"},{"type":"wm","key":"Döşeme"},{"type":"terminal","key":"Terminal"},{"type":"uptime","key":"Yolculuk"},{"type":"memory","key":"Bellek"},{"type":"disk","key":"Depolama"},{"type":"battery","key":"Ruh enerjisi"},"break","colors"]
+}

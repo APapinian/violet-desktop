@@ -1,0 +1,69 @@
+--- a/libqtile/backend/wayland/qw/yoga-tablet.c
++++ b/libqtile/backend/wayland/qw/yoga-tablet.c
+@@ -10,6 +10,10 @@
+ #include <math.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <stdio.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <unistd.h>
+ 
+ struct yoga_tool {
+     struct qw_yoga_tablet *owner;
+@@ -21,6 +25,7 @@
+     struct wl_list link;
+     double x, y, pressure;
+     bool nearby, native, tip_down, side1, side2;
++    uint32_t menu_button;
+ };
+ 
+ static double unit(double value) {
+@@ -238,6 +243,25 @@
+     } else qw_cursor_yoga_tablet_button(tablet->server->cursor, event->time_msec, BTN_LEFT, down);
+ }
+ 
++/* Opt-in reserved side button. Only a private local compositor request is sent;
++ * no input device grabbing, uinput injection or client-directed synthetic keys. */
++static bool violet_pen_action(bool secondary) {
++    const char *runtime = getenv("XDG_RUNTIME_DIR");
++    if (!runtime || runtime[0] != '/') return false;
++    struct sockaddr_un addr = {.sun_family = AF_UNIX};
++    int length = snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/violet-desktop/qtile.sock", runtime);
++    if (length < 0 || (size_t)length >= sizeof(addr.sun_path)) return false;
++    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
++    if (fd < 0) return false;
++    bool ok = false;
++    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
++        const char *payload = secondary ? "{\"action\":\"pen-secondary\"}\n" : "{\"action\":\"pen-menu\"}\n";
++        ok = send(fd, payload, strlen(payload), MSG_NOSIGNAL) == (ssize_t)(strlen(payload));
++    }
++    close(fd);
++    return ok;
++}
++
+ static void handle_button(struct wl_listener *listener, void *data) {
+     struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, button);
+     struct wlr_tablet_tool_button_event *event = data;
+@@ -245,6 +269,21 @@
+     if (!tool || !tool->nearby || !tool_unlocked(tool, event->time_msec)) return;
+     qw_server_idle_notify_activity(tablet->server);
+     tool_motion(tool, event->time_msec);
++    const char *setting = getenv("VIOLET_PEN_MENU_BUTTON");
++    unsigned long reserved = setting ? strtoul(setting, NULL, 10) : 0;
++    if (tool->menu_button == event->button) {
++        if (event->state == WLR_BUTTON_RELEASED) tool->menu_button = 0;
++        return;
++    }
++    bool secondary = (reserved == BTN_STYLUS || reserved == BTN_STYLUS2) && event->button != reserved &&
++        (event->button == BTN_STYLUS || event->button == BTN_STYLUS2) &&
++        getenv("VIOLET_PEN_SECONDARY_ENABLED") &&
++        strcmp(getenv("VIOLET_PEN_SECONDARY_ENABLED"), "1") == 0;
++    if ((((reserved == BTN_STYLUS || reserved == BTN_STYLUS2) && event->button == reserved) || secondary) &&
++            event->state == WLR_BUTTON_PRESSED && !tool->tip_down && violet_pen_action(secondary)) {
++        tool->menu_button = event->button;
++        return;
++    }
+     bool *state = event->button == BTN_STYLUS ? &tool->side1
+                 : event->button == BTN_STYLUS2 ? &tool->side2 : NULL;
+     bool pressed = event->state == WLR_BUTTON_PRESSED;

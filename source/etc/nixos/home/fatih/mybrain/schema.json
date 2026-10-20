@@ -1,0 +1,813 @@
+{
+  "sections": [
+    [
+      "tasks",
+      "Görevler",
+      "list-checks"
+    ],
+    [
+      "goals",
+      "Hedefler",
+      "target"
+    ],
+    [
+      "notes",
+      "Notlar",
+      "notebook-pen"
+    ],
+    [
+      "journal",
+      "Günlük",
+      "feather"
+    ],
+    [
+      "library",
+      "Kitaplık",
+      "book-open"
+    ],
+    [
+      "media",
+      "Film · Dizi · Anime",
+      "clapperboard"
+    ],
+    [
+      "health",
+      "Sağlık",
+      "heart-pulse"
+    ],
+    [
+      "workouts",
+      "Antrenman",
+      "dumbbell"
+    ],
+    [
+      "events",
+      "Ajanda",
+      "calendar-days"
+    ],
+    [
+      "exams",
+      "Sınav ve KPSS",
+      "clipboard-check"
+    ],
+    [
+      "language_logs",
+      "Dil Sarayı",
+      "languages"
+    ],
+    [
+      "habits",
+      "Alışkanlıklar",
+      "grid-3x3"
+    ],
+    [
+      "flashcards",
+      "Tekrar",
+      "layers-3"
+    ],
+    [
+      "decisions",
+      "Kararlar",
+      "git-branch"
+    ],
+    [
+      "documents",
+      "Belge Kasası",
+      "folder-lock"
+    ],
+    [
+      "vocabulary",
+      "Kelime Hafızası",
+      "book-a"
+    ],
+    [
+      "academics",
+      "Akademi ve Sınav",
+      "graduation-cap"
+    ],
+    [
+      "games",
+      "Oyun Günlüğü",
+      "gamepad-2"
+    ],
+    [
+      "challenges",
+      "Dönüşüm Planı",
+      "flame"
+    ],
+    [
+      "scripts",
+      "Script Merkezi",
+      "terminal"
+    ],
+    [
+      "youtube",
+      "YouTube",
+      "youtube"
+    ],
+    [
+      "music",
+      "YouTube Music",
+      "music-2"
+    ],
+    [
+      "romance",
+      "İkimizin Alanı",
+      "heart"
+    ]
+  ],
+  "schema": {
+    "tasks": [
+      [
+        "title",
+        "Görev"
+      ],
+      [
+        "due_date",
+        "Son tarih",
+        "date"
+      ],
+      [
+        "priority",
+        "Öncelik",
+        "number"
+      ],
+      [
+        "tags",
+        "Etiketler (virgülle)"
+      ]
+    ],
+    "goals": [
+      [
+        "title",
+        "Hedef"
+      ],
+      [
+        "period",
+        "Dönem",
+        "select:Günlük|Haftalık|Aylık|Yıllık"
+      ],
+      [
+        "category",
+        "Alan"
+      ],
+      [
+        "target",
+        "Hedef değeri",
+        "number"
+      ],
+      [
+        "current",
+        "Mevcut değer",
+        "number"
+      ],
+      [
+        "deadline",
+        "Bitiş",
+        "date"
+      ]
+    ],
+    "notes": [
+      [
+        "title",
+        "Başlık"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "body",
+        "Düşünceler",
+        "textarea"
+      ],
+      [
+        "tags",
+        "Etiketler (virgülle)"
+      ]
+    ],
+    "journal": [
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "title",
+        "Başlık"
+      ],
+      [
+        "body",
+        "Bugün ne oldu?",
+        "textarea"
+      ],
+      [
+        "highlight",
+        "Günün fikri"
+      ],
+      [
+        "gratitude",
+        "Şükran notu"
+      ],
+      [
+        "mood",
+        "Ruh hâli 1–5",
+        "number"
+      ]
+    ],
+    "library": [
+      [
+        "title",
+        "Kitap"
+      ],
+      [
+        "author",
+        "Yazar"
+      ],
+      [
+        "publication_year",
+        "Basım yılı"
+      ],
+      [
+        "publisher",
+        "Yayınevi"
+      ],
+      [
+        "format",
+        "Biçim",
+        "select:Basılı kitap|E-kitap|Sesli kitap"
+      ],
+      [
+        "status",
+        "Durum",
+        "select:Okunacak|Okunuyor|Tamamlandı"
+      ],
+      [
+        "rating",
+        "Puan 1–10",
+        "number"
+      ],
+      [
+        "review",
+        "İnceleme",
+        "textarea"
+      ]
+    ],
+    "media": [
+      [
+        "kind",
+        "Tür",
+        "select:Film|Dizi|Anime"
+      ],
+      [
+        "title",
+        "Eser adı"
+      ],
+      [
+        "year",
+        "Yıl"
+      ],
+      [
+        "director",
+        "Yönetmen"
+      ],
+      [
+        "cast",
+        "Oyuncular"
+      ],
+      [
+        "status",
+        "Durum",
+        "select:Listede|İzleniyor|Tamamlandı"
+      ],
+      [
+        "rating",
+        "Puan 1–10",
+        "number"
+      ],
+      [
+        "review",
+        "İnceleme",
+        "textarea"
+      ]
+    ],
+    "health": [
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "weight_kg",
+        "Kilo (kg)",
+        "number"
+      ],
+      [
+        "waist_cm",
+        "Bel (cm)",
+        "number"
+      ],
+      [
+        "calories",
+        "Kalori",
+        "number"
+      ],
+      [
+        "protein_g",
+        "Protein (g)",
+        "number"
+      ],
+      [
+        "carbs_g",
+        "Karb. (g)",
+        "number"
+      ],
+      [
+        "fat_g",
+        "Yağ (g)",
+        "number"
+      ],
+      [
+        "steps",
+        "Adım",
+        "number"
+      ],
+      [
+        "note",
+        "Günlük yorum",
+        "textarea"
+      ]
+    ],
+    "workouts": [
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "title",
+        "Antrenman"
+      ],
+      [
+        "duration_minutes",
+        "Süre (dk)",
+        "number"
+      ],
+      [
+        "volume_kg",
+        "Yük (kg)",
+        "number"
+      ],
+      [
+        "details",
+        "Set / tekrar / kardiyo",
+        "textarea"
+      ]
+    ],
+    "events": [
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "title",
+        "Etkinlik"
+      ],
+      [
+        "kind",
+        "Tür",
+        "select:Kişisel|Akademik takvim|Sınav takvimi|Randevu|Yıldönümü|Hatırlatma"
+      ],
+      [
+        "start_time",
+        "Başlangıç"
+      ],
+      [
+        "end_time",
+        "Bitiş"
+      ],
+      [
+        "body",
+        "Açıklama",
+        "textarea"
+      ]
+    ],
+    "exams": [
+      [
+        "title",
+        "Sınav / deneme adı"
+      ],
+      [
+        "kind",
+        "Tür",
+        "select:KPSS|Hukuk Fakültesi|Diğer"
+      ],
+      [
+        "date",
+        "Sınav / deneme tarihi",
+        "date"
+      ],
+      [
+        "application_date",
+        "Başvuru başlangıcı",
+        "date"
+      ],
+      [
+        "application_end",
+        "Başvuru bitişi",
+        "date"
+      ],
+      [
+        "result_date",
+        "Sonuç tarihi",
+        "date"
+      ],
+      [
+        "subject",
+        "Ders / konu"
+      ],
+      [
+        "correct",
+        "Doğru",
+        "number"
+      ],
+      [
+        "wrong",
+        "Yanlış",
+        "number"
+      ],
+      [
+        "empty",
+        "Boş",
+        "number"
+      ],
+      [
+        "target_net",
+        "Hedef net",
+        "number"
+      ],
+      [
+        "status",
+        "Durum",
+        "select:Planlandı|Başvuru yapıldı|Çalışılıyor|Tamamlandı"
+      ],
+      [
+        "body",
+        "Hazırlık planı ve notlar",
+        "textarea"
+      ]
+    ],
+    "language_logs": [
+      [
+        "language",
+        "Dil",
+        "select:English|French|Russian|Spanish|Japanese|Italian|German|Circassian|Turkish"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "minutes",
+        "Süre (dk)",
+        "number"
+      ],
+      [
+        "learned",
+        "Bugün ne öğrendim?",
+        "textarea"
+      ],
+      [
+        "vocabulary",
+        "Kelime ve ifadeler",
+        "textarea"
+      ],
+      [
+        "word_count",
+        "Yazılan kelime",
+        "number"
+      ],
+      [
+        "progress",
+        "İlerleme (%)",
+        "number"
+      ]
+    ],
+    "habits": [
+      [
+        "title",
+        "Alışkanlık"
+      ]
+    ],
+    "flashcards": [
+      [
+        "front",
+        "Soru / kelime"
+      ],
+      [
+        "back",
+        "Cevap / anlam",
+        "textarea"
+      ],
+      [
+        "deck",
+        "Dil veya deste"
+      ],
+      [
+        "due_date",
+        "Tekrar tarihi",
+        "date"
+      ]
+    ],
+    "decisions": [
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "title",
+        "Karar"
+      ],
+      [
+        "context",
+        "Bağlam",
+        "textarea"
+      ],
+      [
+        "options",
+        "Seçenekler",
+        "textarea"
+      ],
+      [
+        "decision",
+        "Karar",
+        "textarea"
+      ],
+      [
+        "review_date",
+        "Gözden geçirme",
+        "date"
+      ],
+      [
+        "outcome",
+        "Sonuç",
+        "textarea"
+      ]
+    ],
+    "documents": [
+      [
+        "title",
+        "Belge"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "category",
+        "Kategori"
+      ],
+      [
+        "tags",
+        "Etiketler (virgülle)"
+      ]
+    ],
+    "vocabulary": [
+      [
+        "title",
+        "Kelime / ifade"
+      ],
+      [
+        "language",
+        "Dil",
+        "select:English|French|Russian|Spanish|Japanese|Italian|German|Circassian|Turkish"
+      ],
+      [
+        "article",
+        "Artikel / okunuş"
+      ],
+      [
+        "meaning",
+        "Anlam"
+      ],
+      [
+        "example",
+        "Örnek cümle",
+        "textarea"
+      ],
+      [
+        "notes",
+        "Öğrenim notu",
+        "textarea"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ]
+    ],
+    "academics": [
+      [
+        "title",
+        "Ders / konu"
+      ],
+      [
+        "kind",
+        "Kayıt türü",
+        "select:Kanun Maddesi|İçtihat|Deneme Sınavı|Çalışma|Not"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "source",
+        "Kaynak / madde"
+      ],
+      [
+        "correct",
+        "Doğru",
+        "number"
+      ],
+      [
+        "wrong",
+        "Yanlış",
+        "number"
+      ],
+      [
+        "minutes",
+        "Çalışma süresi (dk)",
+        "number"
+      ],
+      [
+        "body",
+        "İçerik / yorum",
+        "textarea"
+      ]
+    ],
+    "games": [
+      [
+        "title",
+        "Oyun adı"
+      ],
+      [
+        "genre",
+        "Tür"
+      ],
+      [
+        "status",
+        "Durum",
+        "select:Oynanacak|Oynanıyor|Tamamlandı"
+      ],
+      [
+        "region",
+        "Bölge / harita"
+      ],
+      [
+        "boss",
+        "Boss / engel"
+      ],
+      [
+        "progress",
+        "İlerleme (%)",
+        "number"
+      ],
+      [
+        "rating",
+        "Puan",
+        "number"
+      ],
+      [
+        "review",
+        "Notlar",
+        "textarea"
+      ]
+    ],
+    "challenges": [
+      [
+        "title",
+        "Dönüşüm dönemi"
+      ],
+      [
+        "start_date",
+        "Başlangıç",
+        "date"
+      ],
+      [
+        "end_date",
+        "Bitiş",
+        "date"
+      ],
+      [
+        "step_goal",
+        "Günlük adım hedefi",
+        "number"
+      ],
+      [
+        "exercise_goal",
+        "Egzersiz hedefi"
+      ],
+      [
+        "macro_goal",
+        "Makro hedefi"
+      ],
+      [
+        "notes",
+        "Plan / not",
+        "textarea"
+      ]
+    ],
+    "scripts": [
+      [
+        "title",
+        "Script adı"
+      ],
+      [
+        "kind",
+        "Tür",
+        "select:Bash|Daemon|COSMIC Ayarı"
+      ],
+      [
+        "description",
+        "Ne yapar?"
+      ],
+      [
+        "body",
+        "Bash kodu",
+        "textarea"
+      ]
+    ],
+    "youtube": [
+      [
+        "title",
+        "Video adı"
+      ],
+      [
+        "url",
+        "YouTube video bağlantısı"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "body",
+        "Notlar",
+        "textarea"
+      ]
+    ],
+    "music": [
+      [
+        "title",
+        "Parça / liste adı"
+      ],
+      [
+        "url",
+        "YouTube Music bağlantısı"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "body",
+        "Notlar",
+        "textarea"
+      ]
+    ],
+    "romance": [
+      [
+        "title",
+        "Başlık"
+      ],
+      [
+        "kind",
+        "Tür",
+        "select:Birlikte yaşadıklarımız|Karım Alanı|Şiir|Fotoğraf|Hediye fikri|Yıldönümü|Mektup|Gelecek planı"
+      ],
+      [
+        "date",
+        "Tarih",
+        "date"
+      ],
+      [
+        "status",
+        "Durum",
+        "select:Anı|Planlandı|Hazırlanıyor|Gerçekleşti"
+      ],
+      [
+        "body",
+        "Hikâye / şiir / not",
+        "textarea"
+      ]
+    ]
+  }
+}

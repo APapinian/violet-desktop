@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -u
+export LC_ALL=C
+section() { printf '
+===== %s =====
+' "$1"; }
+section 'Kernel'
+uname -r
+section 'Memory'
+free -h
+section 'Swap'
+swapon --show
+section 'ZRAM'
+zramctl
+section 'Boot time'
+systemd-analyze time
+section 'Boot critical chain'
+systemd-analyze critical-chain --no-pager
+section 'Failed system services'
+systemctl --failed --no-pager
+section 'Failed user services'
+systemctl --user --failed --no-pager
+section 'Disk layout'
+lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS
+section 'Graphics driver'
+lspci -k | sed -n '/VGA compatible controller/,+4p;/Display controller/,+4p'
+section 'Power profile'
+if command -v powerprofilesctl >/dev/null 2>&1; then powerprofilesctl get; else printf 'powerprofilesctl unavailable
+'; fi
+section 'Session'
+printf 'Type=%s Desktop=%s
+' "${XDG_SESSION_TYPE:-unknown}" "${XDG_CURRENT_DESKTOP:-unknown}"
+section 'Desktop process CPU and RAM (lifetime CPU average)'
+ps -C qtile,quickshell,qs,python3 -o pid,comm,pcpu,pmem,rss --sort=-rss
+section 'Live CPU / IO samples'
+vmstat 1 5
+section 'TRIM timer'
+systemctl status fstrim.timer --no-pager -n 0
+section 'Recent kernel errors (if permitted)'
+journalctl -k -b -p err --no-pager -n 30
+section 'End'

@@ -1,0 +1,12 @@
+[Unit]
+Description=Violet ses ve ekran denetimleri
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+[Service]
+ExecStart="/home/fatih/.local/share/violet-controls/bin/violetctl" serve
+Environment="PATH=/home/fatih/.local/share/violet-controls/deps/bin:/run/current-system/sw/bin:/etc/profiles/per-user/fatih/bin"
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+[Install]
+WantedBy=graphical-session.target

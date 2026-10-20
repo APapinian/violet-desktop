@@ -1,0 +1,384 @@
+--- a/libqtile/backend/wayland/cffi/build.py
++++ b/libqtile/backend/wayland/cffi/build.py
+@@ -239,6 +239,7 @@
+     "cursor.h",
+     "input-device.h",
+     "keyboard.h",
++    "touch.h",
+ ]
+ XWAYLAND_ONLY_SOURCES = ["xwayland-view.c"]
+ 
+--- a/libqtile/backend/wayland/inputs.py
++++ b/libqtile/backend/wayland/inputs.py
+@@ -2,6 +2,7 @@
+ from typing import Any
+ 
+ from libqtile import configurable
++from libqtile.log_utils import logger
+ 
+ try:
+     from libqtile.backend.wayland._ffi import ffi, lib
+@@ -75,6 +76,11 @@
+         ("kb_variant", None, "Keyboard variant i.e. ``XKB_DEFAULT_VARIANT``"),
+         ("kb_repeat_rate", 25, "Keyboard key repeats made per second"),
+         ("kb_repeat_delay", 600, "Keyboard delay in milliseconds before repeating"),
++        (
++            "map_output",
++            None,
++            "Map touch device to specified output. Use output name or '*' to map over the entire output areas",
++        ),
+     ]
+ 
+     def __init__(self, **config: Any) -> None:
+@@ -232,4 +238,15 @@
+                     ffi.new("char[]", (conf.kb_variant or "").encode()),
+                 )
+ 
++            elif type == InputDeviceType.TOUCH:
++                touch = lib.qw_input_device_get_touch(input_device)
++                if touch == ffi.NULL:
++                    return
++
++                if conf.map_output is not None:
++                    all_outputs = conf.map_output == "*"
++                    mapped = lib.qw_touch_map_output(touch, conf.map_output.encode(), all_outputs)
++                    if not mapped:
++                        logger.warning("Touch output not found: %s", conf.map_output)
++
+     lib.qw_server_loop_input_devices(server, input_device_cb)
+--- a/libqtile/backend/wayland/qw/input-device.c
++++ b/libqtile/backend/wayland/qw/input-device.c
+@@ -5,6 +5,7 @@
+ #include "cursor.h"
+ #include "input-device.h"
+ #include "keyboard.h"
++#include "touch.h"
+ #include "util.h"
+ 
+ // Called when the device is destroyed
+@@ -42,11 +43,14 @@
+         if (server->lock != NULL) {
+             qw_session_lock_focus_first_lock_surface(server);
+         }
+-
+         break;
+     case WLR_INPUT_DEVICE_POINTER:
+         // Attach a new pointer device to the server's cursor
+         wlr_cursor_attach_input_device(server->cursor->cursor, device);
++        break;
++    case WLR_INPUT_DEVICE_TOUCH:
++        wlr_cursor_attach_input_device(server->cursor->cursor, device);
++        qw_touch_handle_new(server, device);
+         break;
+     default:
+         break;
+@@ -54,6 +58,9 @@
+     uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+     if (!wl_list_empty(&server->keyboards)) {
+         caps |= WL_SEAT_CAPABILITY_KEYBOARD;
++    }
++    if (!wl_list_empty(&server->touches)) {
++        caps |= WL_SEAT_CAPABILITY_TOUCH;
+     }
+     wlr_seat_set_capabilities(server->seat, caps);
+ 
+@@ -70,6 +77,11 @@
+ struct qw_keyboard *qw_input_device_get_keyboard(struct qw_input_device *input_device) {
+     struct qw_keyboard *keyboard = (struct qw_keyboard *)(input_device->device->data);
+     return keyboard;
++}
++
++struct qw_touch *qw_input_device_get_touch(struct qw_input_device *input_device) {
++    struct qw_touch *touch = (struct qw_touch *)(input_device->device->data);
++    return touch;
+ }
+ 
+ bool qw_input_device_is_touchpad(struct qw_input_device *input_device) {
+--- a/libqtile/backend/wayland/qw/input-device.h
++++ b/libqtile/backend/wayland/qw/input-device.h
+@@ -18,6 +18,7 @@
+ struct libinput_device *qw_input_device_get_libinput_handle(struct qw_input_device *input_device);
+ 
+ struct qw_keyboard *qw_input_device_get_keyboard(struct qw_input_device *input_device);
++struct qw_touch *qw_input_device_get_touch(struct qw_input_device *input_device);
+ 
+ bool qw_input_device_is_touchpad(struct qw_input_device *input_device);
+ 
+--- a/libqtile/backend/wayland/qw/server.c
++++ b/libqtile/backend/wayland/qw/server.c
+@@ -21,6 +21,7 @@
+ #include "output.h"
+ #include "server.h"
+ #include "session-lock.h"
++#include "touch.h"
+ #include "util.h"
+ #include "view.h"
+ #include "wayland-server-core.h"
+@@ -95,6 +96,7 @@
+     wlr_xwayland_destroy(server->xwayland);
+ #endif
+ 
++    qw_touch_destroy(server);
+     wl_display_destroy_clients(server->display);
+     wlr_scene_node_destroy(&server->scene->tree.node);
+     qw_cursor_destroy(server->cursor);
+@@ -955,6 +957,7 @@
+     wl_signal_add(&server->backend->events.new_output, &server->new_output);
+ 
+     wl_list_init(&server->keyboards);
++    wl_list_init(&server->touches);
+     wl_list_init(&server->input_devices);
+ 
+     server->seat = wlr_seat_create(server->display, "seat0");
+--- a/libqtile/backend/wayland/qw/server.h
++++ b/libqtile/backend/wayland/qw/server.h
+@@ -42,6 +42,7 @@
+ #include <wlr/types/wlr_session_lock_v1.h>
+ #include <wlr/types/wlr_single_pixel_buffer_v1.h>
+ #include <wlr/types/wlr_subcompositor.h>
++#include <wlr/types/wlr_touch.h>
+ #include <wlr/types/wlr_viewporter.h>
+ #include <wlr/types/wlr_virtual_keyboard_v1.h>
+ #include <wlr/types/wlr_virtual_pointer_v1.h>
+@@ -250,6 +251,7 @@
+     struct wl_listener renderer_lost;
+     struct wl_list keyboards;
+     struct wl_list input_devices;
++    struct wl_list touches;
+     struct wlr_seat *seat;
+     struct qw_cursor *cursor;
+     struct wlr_xdg_shell *xdg_shell;
+--- /dev/null
++++ b/libqtile/backend/wayland/qw/touch.c
+@@ -0,0 +1,188 @@
++#include "touch.h"
++#include "cursor.h"
++#include "output.h"
++#include "util.h"
++#include <stdlib.h>
++#include <string.h>
++
++/* Qtile PR #5882, ported to v0.37.1 with gesture/lifetime/lock guards. */
++static uint32_t next_touch_id;
++
++static struct qw_touch_point *get_point(struct qw_touch *touch, int32_t id) {
++    struct qw_touch_point *p;
++    wl_list_for_each(p, &touch->points, link) if (p->id == id) return p;
++    return NULL;
++}
++
++static void remove_point(struct qw_touch_point *p) {
++    wl_list_remove(&p->node_destroy.link);
++    wl_list_remove(&p->link);
++    free(p);
++}
++
++static void cancel_point(struct qw_touch_point *p) {
++    struct wlr_seat *seat = p->touch->server->seat;
++    struct wlr_touch_point *sp = wlr_seat_touch_get_point(seat, p->seat_id);
++    if (sp) wlr_seat_touch_notify_cancel(seat, sp->client);
++    remove_point(p);
++}
++
++static void cancel_all(struct qw_touch *touch) {
++    struct qw_touch_point *p, *tmp;
++    wl_list_for_each_safe(p, tmp, &touch->points, link) cancel_point(p);
++}
++
++static void node_destroy(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct qw_touch_point *p = wl_container_of(listener, p, node_destroy);
++    cancel_point(p);
++}
++
++static bool unlocked(struct qw_touch *touch) {
++    if (touch->server->lock_state == QW_SESSION_LOCK_UNLOCKED) return true;
++    /* Normal clients must not receive touches during session lock. */
++    cancel_all(touch);
++    return false;
++}
++
++static void handle_down(struct wl_listener *listener, void *data) {
++    struct qw_touch *touch = wl_container_of(listener, touch, down);
++    struct wlr_touch_down_event *event = data;
++    struct qw_server *server = touch->server;
++    qw_server_idle_notify_activity(server);
++    if (!unlocked(touch)) return;
++    struct qw_touch_point *old = get_point(touch, event->touch_id);
++    if (old) cancel_point(old);
++    double lx, ly, sx, sy;
++    wlr_cursor_absolute_to_layout_coords(server->cursor->cursor, touch->device,
++                                        event->x, event->y, &lx, &ly);
++    struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node,
++                                                  lx, ly, &sx, &sy);
++    if (!node || node->type != WLR_SCENE_NODE_BUFFER) return;
++    struct wlr_scene_surface *surface =
++        wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node));
++    if (!surface) return;
++    struct qw_touch_point *p = calloc(1, sizeof(*p));
++    if (!p) return;
++    p->id = event->touch_id;
++    p->seat_id = (int32_t)(next_touch_id++ & INT32_MAX);
++    p->touch = touch;
++    p->node = node;
++    p->node_destroy.notify = node_destroy;
++    wl_signal_add(&node->events.destroy, &p->node_destroy);
++    wl_list_insert(&touch->points, &p->link);
++    wlr_seat_touch_notify_down(server->seat, surface->surface, event->time_msec,
++                              p->seat_id, sx, sy);
++    if (!wlr_seat_touch_get_point(server->seat, p->seat_id)) remove_point(p);
++}
++
++static void handle_up(struct wl_listener *listener, void *data) {
++    struct qw_touch *touch = wl_container_of(listener, touch, up);
++    struct wlr_touch_up_event *event = data;
++    qw_server_idle_notify_activity(touch->server);
++    if (!unlocked(touch)) return;
++    struct qw_touch_point *p = get_point(touch, event->touch_id);
++    if (!p) return;
++    if (wlr_seat_touch_get_point(touch->server->seat, p->seat_id))
++        wlr_seat_touch_notify_up(touch->server->seat, event->time_msec, p->seat_id);
++    remove_point(p);
++}
++
++static void handle_motion(struct wl_listener *listener, void *data) {
++    struct qw_touch *touch = wl_container_of(listener, touch, motion);
++    struct wlr_touch_motion_event *event = data;
++    qw_server_idle_notify_activity(touch->server);
++    if (!unlocked(touch)) return;
++    struct qw_touch_point *p = get_point(touch, event->touch_id);
++    if (!p) return;
++    if (!wlr_seat_touch_get_point(touch->server->seat, p->seat_id)) {
++        remove_point(p);
++        return;
++    }
++    int nx, ny;
++    if (!wlr_scene_node_coords(p->node, &nx, &ny)) {
++        cancel_point(p);
++        return;
++    }
++    double lx, ly;
++    wlr_cursor_absolute_to_layout_coords(touch->server->cursor->cursor, touch->device,
++                                        event->x, event->y, &lx, &ly);
++    wlr_seat_touch_notify_motion(touch->server->seat, event->time_msec,
++                                p->seat_id, lx - nx, ly - ny);
++}
++
++static void handle_cancel(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct qw_touch *touch = wl_container_of(listener, touch, cancel);
++    cancel_all(touch);
++}
++
++static void handle_frame(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct qw_touch *touch = wl_container_of(listener, touch, frame);
++    if (unlocked(touch)) wlr_seat_touch_notify_frame(touch->server->seat);
++}
++
++static void handle_destroy(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct qw_touch *touch = wl_container_of(listener, touch, destroy);
++    cancel_all(touch);
++    wl_list_remove(&touch->link);
++    wl_list_remove(&touch->down.link);
++    wl_list_remove(&touch->up.link);
++    wl_list_remove(&touch->motion.link);
++    wl_list_remove(&touch->cancel.link);
++    wl_list_remove(&touch->frame.link);
++    wl_list_remove(&touch->destroy.link);
++    touch->device->data = NULL;
++    uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
++    if (!wl_list_empty(&touch->server->keyboards)) caps |= WL_SEAT_CAPABILITY_KEYBOARD;
++    if (!wl_list_empty(&touch->server->touches)) caps |= WL_SEAT_CAPABILITY_TOUCH;
++    wlr_seat_set_capabilities(touch->server->seat, caps);
++    free(touch);
++}
++
++void qw_touch_destroy(struct qw_server *server) {
++    struct qw_touch *touch, *tmp;
++    wl_list_for_each_safe(touch, tmp, &server->touches, link)
++        handle_destroy(&touch->destroy, NULL);
++}
++
++bool qw_touch_map_output(struct qw_touch *touch, const char *name, bool all_outputs) {
++    if (all_outputs) {
++        wlr_cursor_map_input_to_output(touch->server->cursor->cursor, touch->device, NULL);
++        return true;
++    }
++    struct qw_output *output;
++    wl_list_for_each(output, &touch->server->outputs, link) {
++        if (strcmp(output->wlr_output->name, name) == 0) {
++            wlr_cursor_map_input_to_output(touch->server->cursor->cursor,
++                                           touch->device, output->wlr_output);
++            return true;
++        }
++    }
++    return false;
++}
++
++void qw_touch_handle_new(struct qw_server *server, struct wlr_input_device *device) {
++    struct qw_touch *touch = calloc(1, sizeof(*touch));
++    device->data = touch;
++    if (!touch) return;
++    touch->device = device;
++    touch->wtouch = wlr_touch_from_input_device(device);
++    touch->server = server;
++    wl_list_init(&touch->points);
++    wl_list_insert(&server->touches, &touch->link);
++    touch->down.notify = handle_down;
++    wl_signal_add(&touch->wtouch->events.down, &touch->down);
++    touch->up.notify = handle_up;
++    wl_signal_add(&touch->wtouch->events.up, &touch->up);
++    touch->motion.notify = handle_motion;
++    wl_signal_add(&touch->wtouch->events.motion, &touch->motion);
++    touch->cancel.notify = handle_cancel;
++    wl_signal_add(&touch->wtouch->events.cancel, &touch->cancel);
++    touch->frame.notify = handle_frame;
++    wl_signal_add(&touch->wtouch->events.frame, &touch->frame);
++    touch->destroy.notify = handle_destroy;
++    wl_signal_add(&device->events.destroy, &touch->destroy);
++}
+--- /dev/null
++++ b/libqtile/backend/wayland/qw/touch.h
+@@ -0,0 +1,40 @@
++#ifndef TOUCH_H
++#define TOUCH_H
++
++#include "server.h"
++
++struct qw_touch_point {
++    int32_t id;
++    // Private data
++    int32_t seat_id;
++    struct qw_touch *touch;
++    struct wlr_scene_node *node;
++    struct wl_listener node_destroy;
++    struct wl_list link;
++};
++
++struct qw_touch {
++    struct qw_server *server;
++
++    // Private data
++    struct wlr_touch *wtouch;
++    struct wlr_input_device *device;
++
++    struct wl_listener down;
++    struct wl_listener up;
++    struct wl_listener motion;
++    struct wl_listener cancel;
++    struct wl_listener frame;
++    struct wl_listener destroy;
++
++    struct wl_list points; // qw_touch_point
++    struct wl_list link;
++};
++
++// Functions to initialise and destroy touch device
++void qw_touch_handle_new(struct qw_server *server, struct wlr_input_device *device);
++void qw_touch_destroy(struct qw_server *server);
++
++bool qw_touch_map_output(struct qw_touch *touch, const char *output_name, bool map_all_outputs);
++
++#endif /* TOUCH_H */

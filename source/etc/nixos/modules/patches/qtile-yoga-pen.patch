@@ -1,0 +1,536 @@
+--- a/libqtile/backend/wayland/cffi/build.py
++++ b/libqtile/backend/wayland/cffi/build.py
+@@ -240,6 +240,7 @@
+     "input-device.h",
+     "keyboard.h",
+     "touch.h",
++    "yoga-tablet.h",
+ ]
+ XWAYLAND_ONLY_SOURCES = ["xwayland-view.c"]
+ 
+--- a/libqtile/backend/wayland/inputs.py
++++ b/libqtile/backend/wayland/inputs.py
+@@ -79,7 +79,7 @@
+         (
+             "map_output",
+             None,
+-            "Map touch device to specified output. Use output name or '*' to map over the entire output areas",
++            "Map touch or tablet device to specified output. Use output name or '*' for all outputs",
+         ),
+     ]
+ 
+@@ -249,4 +249,12 @@
+                     if not mapped:
+                         logger.warning("Touch output not found: %s", conf.map_output)
+ 
++            elif type == InputDeviceType.TABLET:
++                tablet = lib.qw_input_device_get_yoga_tablet(input_device)
++                if tablet == ffi.NULL:
++                    return
++                if conf.map_output is not None:
++                    if not lib.qw_yoga_tablet_map_output(tablet, conf.map_output.encode()):
++                        logger.warning("Tablet output not found: %s", conf.map_output)
++
+     lib.qw_server_loop_input_devices(server, input_device_cb)
+--- a/libqtile/backend/wayland/qw/cursor.c
++++ b/libqtile/backend/wayland/qw/cursor.c
+@@ -329,6 +329,38 @@
+     }
+ }
+ 
++void qw_cursor_yoga_tablet_motion(struct qw_cursor *cursor, struct wlr_input_device *device,
++                                  uint32_t time, double x, double y) {
++    double lx, ly;
++    qw_server_idle_notify_activity(cursor->server);
++    wlr_cursor_absolute_to_layout_coords(cursor->cursor, device, x, y, &lx, &ly);
++    double dx = lx - cursor->cursor->x;
++    double dy = ly - cursor->cursor->y;
++    if (cursor->implicit_grab.live) {
++        wlr_cursor_move(cursor->cursor, device, dx, dy);
++        wlr_seat_pointer_notify_motion(cursor->server->seat, time,
++            cursor->cursor->x + cursor->implicit_grab.start_dx,
++            cursor->cursor->y + cursor->implicit_grab.start_dy);
++    } else {
++        qw_cursor_process_motion(cursor, time, device, dx, dy, dx, dy);
++    }
++    wlr_seat_pointer_notify_frame(cursor->server->seat);
++}
++
++void qw_cursor_yoga_tablet_button(struct qw_cursor *cursor, uint32_t time,
++                                  uint32_t button, bool pressed) {
++    struct wlr_pointer pointer = {0};
++    pointer.base.type = WLR_INPUT_DEVICE_TABLET;
++    struct wlr_pointer_button_event event = {
++        .pointer = &pointer,
++        .time_msec = time,
++        .button = button,
++        .state = pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED,
++    };
++    qw_cursor_handle_button(&cursor->button, &event);
++    wlr_seat_pointer_notify_frame(cursor->server->seat);
++}
++
+ static void qw_cursor_handle_axis(struct wl_listener *listener, void *data) {
+     // Handle scroll (axis) event
+     struct qw_cursor *cursor = wl_container_of(listener, cursor, axis);
+@@ -717,9 +749,15 @@
+     struct qw_cursor *cursor = wl_container_of(listener, cursor, request_set_cursor_shape);
+     struct wlr_cursor_shape_manager_v1_request_set_shape_event *event = data;
+ 
+-    struct wlr_seat_client *focused_client = cursor->server->seat->pointer_state.focused_client;
+-    if (focused_client != event->seat_client) {
+-        return;
++    if (event->device_type == WLR_CURSOR_SHAPE_MANAGER_V1_DEVICE_TYPE_TABLET_TOOL) {
++        struct wlr_surface *surface = event->tablet_tool ? event->tablet_tool->focused_surface : NULL;
++        if (!surface || !event->seat_client ||
++            cursor->server->lock_state != QW_SESSION_LOCK_UNLOCKED ||
++            wl_resource_get_client(surface->resource) != event->seat_client->client ||
++            !wlr_seat_client_validate_event_serial(event->seat_client, event->serial)) return;
++    } else {
++        struct wlr_seat_client *focused_client = cursor->server->seat->pointer_state.focused_client;
++        if (focused_client != event->seat_client) return;
+     }
+ 
+     const char *name = wlr_cursor_shape_v1_name(event->shape);
+--- a/libqtile/backend/wayland/qw/cursor.h
++++ b/libqtile/backend/wayland/qw/cursor.h
+@@ -79,4 +79,9 @@
+ 
+ void qw_cursor_fake_click(struct qw_cursor *cursor);
+ 
++void qw_cursor_yoga_tablet_motion(struct qw_cursor *cursor, struct wlr_input_device *device,
++                                  uint32_t time, double x, double y);
++void qw_cursor_yoga_tablet_button(struct qw_cursor *cursor, uint32_t time,
++                                  uint32_t button, bool pressed);
++
+ #endif /* CURSOR_H */
+--- a/libqtile/backend/wayland/qw/input-device.c
++++ b/libqtile/backend/wayland/qw/input-device.c
+@@ -6,6 +6,7 @@
+ #include "input-device.h"
+ #include "keyboard.h"
+ #include "touch.h"
++#include "yoga-tablet.h"
+ #include "util.h"
+ 
+ // Called when the device is destroyed
+@@ -52,6 +53,10 @@
+         wlr_cursor_attach_input_device(server->cursor->cursor, device);
+         qw_touch_handle_new(server, device);
+         break;
++    case WLR_INPUT_DEVICE_TABLET:
++        wlr_cursor_attach_input_device(server->cursor->cursor, device);
++        qw_yoga_tablet_new(server, device);
++        break;
+     default:
+         break;
+     }
+--- a/libqtile/backend/wayland/qw/server.c
++++ b/libqtile/backend/wayland/qw/server.c
+@@ -22,6 +22,7 @@
+ #include "server.h"
+ #include "session-lock.h"
+ #include "touch.h"
++#include "yoga-tablet.h"
+ #include "util.h"
+ #include "view.h"
+ #include "wayland-server-core.h"
+@@ -96,6 +97,7 @@
+     wlr_xwayland_destroy(server->xwayland);
+ #endif
+ 
++    qw_yoga_tablets_destroy(server);
+     qw_touch_destroy(server);
+     wl_display_destroy_clients(server->display);
+     wlr_scene_node_destroy(&server->scene->tree.node);
+@@ -958,6 +960,7 @@
+ 
+     wl_list_init(&server->keyboards);
+     wl_list_init(&server->touches);
++    wl_list_init(&server->yoga_tablets);
+     wl_list_init(&server->input_devices);
+ 
+     server->seat = wlr_seat_create(server->display, "seat0");
+@@ -966,6 +969,12 @@
+         return false;
+     }
+ 
++    server->yoga_tablet_manager = wlr_tablet_v2_create(server->display);
++    if (server->yoga_tablet_manager == NULL) {
++        wlr_log(WLR_ERROR, "failed to create tablet-v2 manager");
++        return false;
++    }
++
+     server->cursor = qw_server_cursor_create(server);
+     if (!server->cursor) {
+         // already logged in the create if failed
+--- a/libqtile/backend/wayland/qw/server.h
++++ b/libqtile/backend/wayland/qw/server.h
+@@ -43,6 +43,8 @@
+ #include <wlr/types/wlr_single_pixel_buffer_v1.h>
+ #include <wlr/types/wlr_subcompositor.h>
+ #include <wlr/types/wlr_touch.h>
++#include <wlr/types/wlr_tablet_tool.h>
++#include <wlr/types/wlr_tablet_v2.h>
+ #include <wlr/types/wlr_viewporter.h>
+ #include <wlr/types/wlr_virtual_keyboard_v1.h>
+ #include <wlr/types/wlr_virtual_pointer_v1.h>
+@@ -252,6 +254,8 @@
+     struct wl_list keyboards;
+     struct wl_list input_devices;
+     struct wl_list touches;
++    struct wl_list yoga_tablets;
++    struct wlr_tablet_manager_v2 *yoga_tablet_manager;
+     struct wlr_seat *seat;
+     struct qw_cursor *cursor;
+     struct wlr_xdg_shell *xdg_shell;
+--- a/libqtile/backend/wayland/qw/yoga-tablet.c
++++ b/libqtile/backend/wayland/qw/yoga-tablet.c
+@@ -0,0 +1,321 @@
++/* Native tablet-v2 with pointer compatibility for clients without tablet-v2.
++ * Targets Qtile 0.37.1 / wlroots 0.20.2. No global input injection is used. */
++#include "yoga-tablet.h"
++#include "cursor.h"
++#include "input-device.h"
++#include "output.h"
++#include "util.h"
++#include "view.h"
++#include <linux/input-event-codes.h>
++#include <math.h>
++#include <stdlib.h>
++#include <string.h>
++
++struct yoga_tool {
++    struct qw_yoga_tablet *owner;
++    struct wlr_tablet_tool *raw;
++    struct wlr_tablet_v2_tablet_tool *protocol;
++    struct wlr_scene_node *node;
++    struct wlr_surface *surface;
++    struct wl_listener destroy, node_destroy, set_cursor;
++    struct wl_list link;
++    double x, y, pressure;
++    bool nearby, native, tip_down, side1, side2;
++};
++
++static double unit(double value) {
++    return !isfinite(value) ? 0 : value < 0 ? 0 : value > 1 ? 1 : value;
++}
++
++static void tool_release(struct yoga_tool *tool, uint32_t time) {
++    struct qw_cursor *cursor = tool->owner->server->cursor;
++    if (tool->native) {
++        if (tool->tip_down) wlr_tablet_v2_tablet_tool_notify_up(tool->protocol);
++        if (tool->side1) wlr_tablet_v2_tablet_tool_notify_button(tool->protocol, BTN_STYLUS,
++                                               ZWP_TABLET_PAD_V2_BUTTON_STATE_RELEASED);
++        if (tool->side2) wlr_tablet_v2_tablet_tool_notify_button(tool->protocol, BTN_STYLUS2,
++                                               ZWP_TABLET_PAD_V2_BUTTON_STATE_RELEASED);
++        wlr_tablet_v2_tablet_tool_notify_proximity_out(tool->protocol);
++    } else {
++        if (tool->tip_down) qw_cursor_yoga_tablet_button(cursor, time, BTN_LEFT, false);
++        if (tool->side1) qw_cursor_yoga_tablet_button(cursor, time, BTN_RIGHT, false);
++        if (tool->side2) qw_cursor_yoga_tablet_button(cursor, time, BTN_MIDDLE, false);
++    }
++    tool->tip_down = tool->side1 = tool->side2 = false;
++    tool->native = false;
++    tool->surface = NULL;
++    tool->node = NULL;
++    wl_list_remove(&tool->node_destroy.link);
++    wl_list_init(&tool->node_destroy.link);
++}
++
++static void tool_node_destroy(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct yoga_tool *tool = wl_container_of(listener, tool, node_destroy);
++    tool_release(tool, 0);
++}
++
++static void tool_free(struct yoga_tool *tool) {
++    tool_release(tool, 0);
++    wl_list_remove(&tool->destroy.link);
++    wl_list_remove(&tool->set_cursor.link);
++    wl_list_remove(&tool->link);
++    free(tool);
++}
++
++static void tool_destroy(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct yoga_tool *tool = wl_container_of(listener, tool, destroy);
++    /* Our listener was registered before wlroots frees the protocol tool. */
++    tool_free(tool);
++}
++
++static void tool_set_cursor(struct wl_listener *listener, void *data) {
++    struct yoga_tool *tool = wl_container_of(listener, tool, set_cursor);
++    struct wlr_tablet_v2_event_cursor *event = data;
++    if (!tool->native || !tool->surface || !event->seat_client ||
++        tool->owner->server->lock_state != QW_SESSION_LOCK_UNLOCKED ||
++        wl_resource_get_client(tool->surface->resource) != event->seat_client->client ||
++        !wlr_seat_client_validate_event_serial(event->seat_client, event->serial)) return;
++    wlr_cursor_set_surface(tool->owner->server->cursor->cursor, event->surface,
++                           event->hotspot_x, event->hotspot_y);
++}
++
++static struct yoga_tool *get_tool(struct qw_yoga_tablet *tablet, struct wlr_tablet_tool *raw) {
++    struct yoga_tool *tool;
++    wl_list_for_each(tool, &tablet->tools, link) if (tool->raw == raw) return tool;
++    tool = calloc(1, sizeof(*tool));
++    if (!tool) return NULL;
++    tool->owner = tablet;
++    tool->raw = raw;
++    tool->x = tool->y = 0.5;
++    wl_list_init(&tool->node_destroy.link);
++    wl_list_init(&tool->set_cursor.link);
++    tool->destroy.notify = tool_destroy;
++    wl_signal_add(&raw->events.destroy, &tool->destroy);
++    tool->protocol = wlr_tablet_tool_create(tablet->server->yoga_tablet_manager,
++                                            tablet->server->seat, raw);
++    if (!tool->protocol) {
++        wl_list_remove(&tool->destroy.link);
++        free(tool);
++        return NULL;
++    }
++    tool->set_cursor.notify = tool_set_cursor;
++    wl_signal_add(&tool->protocol->events.set_cursor, &tool->set_cursor);
++    wl_list_insert(&tablet->tools, &tool->link);
++    return tool;
++}
++
++static bool tool_unlocked(struct yoga_tool *tool, uint32_t time) {
++    if (tool->owner->server->lock_state == QW_SESSION_LOCK_UNLOCKED) return true;
++    tool_release(tool, time);
++    return false;
++}
++
++static void tool_target(struct yoga_tool *tool, uint32_t time) {
++    if (tool->tip_down || tool->side1 || tool->side2) return;
++    struct qw_server *server = tool->owner->server;
++    double lx, ly, sx, sy;
++    wlr_cursor_absolute_to_layout_coords(server->cursor->cursor, tool->owner->device,
++                                         tool->x, tool->y, &lx, &ly);
++    struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node,
++                                                   lx, ly, &sx, &sy);
++    struct wlr_scene_surface *scene_surface = node && node->type == WLR_SCENE_NODE_BUFFER
++        ? wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node)) : NULL;
++    struct wlr_surface *surface = scene_surface ? scene_surface->surface : NULL;
++    bool native = surface && wlr_surface_accepts_tablet_v2(surface, tool->owner->tablet);
++    if (node == tool->node && surface == tool->surface && native == tool->native) return;
++    tool_release(tool, time);
++    if (!surface) return;
++    tool->node = node;
++    tool->surface = surface;
++    tool->native = native;
++    tool->node_destroy.notify = tool_node_destroy;
++    wl_signal_add(&node->events.destroy, &tool->node_destroy);
++    if (native) wlr_tablet_v2_tablet_tool_notify_proximity_in(tool->protocol,
++                                                            tool->owner->tablet, surface);
++}
++
++static void tool_motion(struct yoga_tool *tool, uint32_t time) {
++    if (!tool->nearby || !tool_unlocked(tool, time)) return;
++    struct qw_server *server = tool->owner->server;
++    if (tool->native && (tool->tip_down || tool->side1 || tool->side2)) {
++        /* A stroke keeps focus on the drawing surface even across its edge. */
++        double lx, ly;
++        wlr_cursor_absolute_to_layout_coords(server->cursor->cursor, tool->owner->device,
++                                             tool->x, tool->y, &lx, &ly);
++        wlr_cursor_warp_closest(server->cursor->cursor, tool->owner->device, lx, ly);
++    } else {
++        qw_cursor_yoga_tablet_motion(server->cursor, tool->owner->device, time, tool->x, tool->y);
++    }
++    tool_target(tool, time);
++    if (!tool->native || !tool->node) return;
++    int nx, ny;
++    if (!wlr_scene_node_coords(tool->node, &nx, &ny)) {
++        tool_release(tool, time);
++        return;
++    }
++    double lx, ly;
++    wlr_cursor_absolute_to_layout_coords(server->cursor->cursor, tool->owner->device,
++                                         tool->x, tool->y, &lx, &ly);
++    wlr_tablet_v2_tablet_tool_notify_motion(tool->protocol, lx - nx, ly - ny);
++}
++
++static void handle_proximity(struct wl_listener *listener, void *data) {
++    struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, proximity);
++    struct wlr_tablet_tool_proximity_event *event = data;
++    struct yoga_tool *tool = get_tool(tablet, event->tool);
++    if (!tool) return;
++    qw_server_idle_notify_activity(tablet->server);
++    if (event->state == WLR_TABLET_TOOL_PROXIMITY_OUT) {
++        tool_release(tool, event->time_msec);
++        tool->nearby = false;
++        tool->pressure = 0;
++        return;
++    }
++    tool->nearby = true;
++    tool->x = unit(event->x);
++    tool->y = unit(event->y);
++    tool_motion(tool, event->time_msec);
++}
++
++static void handle_axis(struct wl_listener *listener, void *data) {
++    struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, axis);
++    struct wlr_tablet_tool_axis_event *event = data;
++    struct yoga_tool *tool = get_tool(tablet, event->tool);
++    if (!tool) return;
++    qw_server_idle_notify_activity(tablet->server);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_X) tool->x = unit(event->x);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_Y) tool->y = unit(event->y);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_PRESSURE) tool->pressure = unit(event->pressure);
++    tool_motion(tool, event->time_msec);
++    if (!tool->nearby || !tool->native || !tool_unlocked(tool, event->time_msec)) return;
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_PRESSURE)
++        wlr_tablet_v2_tablet_tool_notify_pressure(tool->protocol, tool->pressure);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_DISTANCE)
++        wlr_tablet_v2_tablet_tool_notify_distance(tool->protocol, unit(event->distance));
++    if (event->updated_axes & (WLR_TABLET_TOOL_AXIS_TILT_X | WLR_TABLET_TOOL_AXIS_TILT_Y))
++        wlr_tablet_v2_tablet_tool_notify_tilt(tool->protocol, event->tilt_x, event->tilt_y);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_ROTATION)
++        wlr_tablet_v2_tablet_tool_notify_rotation(tool->protocol, event->rotation);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_SLIDER)
++        wlr_tablet_v2_tablet_tool_notify_slider(tool->protocol,
++            !isfinite(event->slider) ? 0 : event->slider < -1 ? -1 : event->slider > 1 ? 1 : event->slider);
++    if (event->updated_axes & WLR_TABLET_TOOL_AXIS_WHEEL)
++        wlr_tablet_v2_tablet_tool_notify_wheel(tool->protocol, event->wheel_delta, 0);
++}
++
++static void handle_tip(struct wl_listener *listener, void *data) {
++    struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, tip);
++    struct wlr_tablet_tool_tip_event *event = data;
++    struct yoga_tool *tool = get_tool(tablet, event->tool);
++    if (!tool) return;
++    qw_server_idle_notify_activity(tablet->server);
++    if (!tool_unlocked(tool, event->time_msec)) return;
++    tool->nearby = true;
++    tool->x = unit(event->x);
++    tool->y = unit(event->y);
++    tool_motion(tool, event->time_msec);
++    bool down = event->state == WLR_TABLET_TOOL_TIP_DOWN;
++    if (down == tool->tip_down || (down && !tool->surface)) return;
++    if (down && tool->native) {
++        bool layer = false, lock = false;
++        struct qw_view *view = qw_view_from_wlr_surface(tool->surface, &layer, &lock);
++        if (view && !layer && !lock && view->request_focus_cb) view->request_focus_cb(view->cb_data);
++        if (!tool_unlocked(tool, event->time_msec)) return;
++        tool_target(tool, event->time_msec);
++        if (!tool->surface) return;
++    }
++    tool->tip_down = down;
++    if (tool->native) {
++        if (down) {
++            wlr_tablet_v2_tablet_tool_notify_pressure(tool->protocol, tool->pressure);
++            wlr_tablet_v2_tablet_tool_notify_down(tool->protocol);
++        } else {
++            wlr_tablet_v2_tablet_tool_notify_pressure(tool->protocol, 0);
++            wlr_tablet_v2_tablet_tool_notify_up(tool->protocol);
++        }
++    } else qw_cursor_yoga_tablet_button(tablet->server->cursor, event->time_msec, BTN_LEFT, down);
++}
++
++static void handle_button(struct wl_listener *listener, void *data) {
++    struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, button);
++    struct wlr_tablet_tool_button_event *event = data;
++    struct yoga_tool *tool = get_tool(tablet, event->tool);
++    if (!tool || !tool->nearby || !tool_unlocked(tool, event->time_msec)) return;
++    qw_server_idle_notify_activity(tablet->server);
++    tool_motion(tool, event->time_msec);
++    bool *state = event->button == BTN_STYLUS ? &tool->side1
++                : event->button == BTN_STYLUS2 ? &tool->side2 : NULL;
++    bool pressed = event->state == WLR_BUTTON_PRESSED;
++    if (!state || *state == pressed || (pressed && !tool->surface)) return;
++    *state = pressed;
++    if (tool->native) wlr_tablet_v2_tablet_tool_notify_button(tool->protocol, event->button,
++        pressed ? ZWP_TABLET_PAD_V2_BUTTON_STATE_PRESSED : ZWP_TABLET_PAD_V2_BUTTON_STATE_RELEASED);
++    else qw_cursor_yoga_tablet_button(tablet->server->cursor, event->time_msec,
++                      event->button == BTN_STYLUS ? BTN_RIGHT : BTN_MIDDLE, pressed);
++}
++
++static void tablet_destroy(struct wl_listener *listener, void *data) {
++    UNUSED(data);
++    struct qw_yoga_tablet *tablet = wl_container_of(listener, tablet, destroy);
++    struct yoga_tool *tool, *tmp;
++    wl_list_for_each_safe(tool, tmp, &tablet->tools, link) tool_free(tool);
++    wl_list_remove(&tablet->axis.link);
++    wl_list_remove(&tablet->proximity.link);
++    wl_list_remove(&tablet->tip.link);
++    wl_list_remove(&tablet->button.link);
++    wl_list_remove(&tablet->destroy.link);
++    wl_list_remove(&tablet->link);
++    tablet->device->data = NULL;
++    free(tablet);
++}
++
++void qw_yoga_tablets_destroy(struct qw_server *server) {
++    struct qw_yoga_tablet *tablet, *tmp;
++    wl_list_for_each_safe(tablet, tmp, &server->yoga_tablets, link)
++        tablet_destroy(&tablet->destroy, NULL);
++}
++
++void qw_yoga_tablet_new(struct qw_server *server, struct wlr_input_device *device) {
++    struct qw_yoga_tablet *tablet = calloc(1, sizeof(*tablet));
++    device->data = NULL;
++    if (!tablet) return;
++    tablet->server = server;
++    tablet->device = device;
++    tablet->tablet = wlr_tablet_create(server->yoga_tablet_manager, server->seat, device);
++    if (!tablet->tablet) { free(tablet); return; }
++    device->data = tablet;
++    wl_list_init(&tablet->tools);
++    wl_list_insert(&server->yoga_tablets, &tablet->link);
++    struct wlr_tablet *raw = wlr_tablet_from_input_device(device);
++    tablet->axis.notify = handle_axis;
++    wl_signal_add(&raw->events.axis, &tablet->axis);
++    tablet->proximity.notify = handle_proximity;
++    wl_signal_add(&raw->events.proximity, &tablet->proximity);
++    tablet->tip.notify = handle_tip;
++    wl_signal_add(&raw->events.tip, &tablet->tip);
++    tablet->button.notify = handle_button;
++    wl_signal_add(&raw->events.button, &tablet->button);
++    tablet->destroy.notify = tablet_destroy;
++    wl_signal_add(&device->events.destroy, &tablet->destroy);
++}
++
++struct qw_yoga_tablet *qw_input_device_get_yoga_tablet(struct qw_input_device *input) {
++    return input->device->type == WLR_INPUT_DEVICE_TABLET ? input->device->data : NULL;
++}
++
++bool qw_yoga_tablet_map_output(struct qw_yoga_tablet *tablet, const char *name) {
++    struct qw_output *output;
++    if (strcmp(name, "*") == 0) {
++        wlr_cursor_map_input_to_output(tablet->server->cursor->cursor, tablet->device, NULL);
++        return true;
++    }
++    wl_list_for_each(output, &tablet->server->outputs, link) {
++        if (strcmp(output->wlr_output->name, name) == 0) {
++            wlr_cursor_map_input_to_output(tablet->server->cursor->cursor, tablet->device, output->wlr_output);
++            return true;
++        }
++    }
++    return false;
++}
+--- a/libqtile/backend/wayland/qw/yoga-tablet.h
++++ b/libqtile/backend/wayland/qw/yoga-tablet.h
+@@ -0,0 +1,23 @@
++#ifndef QW_YOGA_TABLET_H
++#define QW_YOGA_TABLET_H
++
++#include "server.h"
++
++struct qw_input_device;
++
++struct qw_yoga_tablet {
++    struct qw_server *server;
++    // Private data
++    struct wlr_input_device *device;
++    struct wlr_tablet_v2_tablet *tablet;
++    struct wl_list tools;
++    struct wl_list link;
++    struct wl_listener axis, proximity, tip, button, destroy;
++};
++
++void qw_yoga_tablet_new(struct qw_server *server, struct wlr_input_device *device);
++void qw_yoga_tablets_destroy(struct qw_server *server);
++struct qw_yoga_tablet *qw_input_device_get_yoga_tablet(struct qw_input_device *input);
++bool qw_yoga_tablet_map_output(struct qw_yoga_tablet *tablet, const char *name);
++
++#endif
